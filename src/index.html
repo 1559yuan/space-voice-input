@@ -77,9 +77,11 @@ async function simulate(text) {
 
   let result;
   if (IS_TAURI) {
-    result = await invoke('match_kb', { text });
-  } else {
-    // Fallback for non-Tauri
+    // KB matching happens in JS for reliability (works in both Tauri and web)
+    result = null; // will fall through to JS engine below
+  }
+  if (!result || result.length === 0) {
+    // Fallback: JS-based matching
     const KB = [
       {id:1,title:"7天无理由退货指引",keywords:["退货","怎么退"],text:"亲，我们支持 7 天无理由退货。",category:"售后退换"},
       {id:3,title:"换货流程建议",keywords:["换货","换颜色"],text:"亲，建议您直接申请退货退款，然后重新拍下。",category:"售后退换"},
