@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: [main, beta]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: rustup-actions/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: npm run build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PASSPHRASE: ${{ secrets.TAURI_SIGNING_PASSPHRASE }}
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: npm run build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: space-voice-${{ runner.os }}
+          path: |
+            src-tauri/target/release/bundle/

@@ -1,0 +1,14 @@
+{
+  "name": "space-voice-input",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Space 语音输入法 — 知识库驱动的语音话术助手",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

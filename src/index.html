@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>Space 语音输入法</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;
+       background:#0f172a;color:#e2e8f0;display:flex;flex-direction:column;height:100vh;overflow:hidden;user-select:none}
+  .titlebar{display:flex;align-items:center;gap:10px;padding:6px 16px;background:#1e293b;border-bottom:1px solid #2d3a4a;font-size:12px;color:#94a3b8;flex:none;height:36px}
+  .titlebar .tt{flex:1;text-align:center;font-weight:600;font-size:13px;color:#e2e8f0}
+  .body{flex:1;overflow-y:auto;padding:16px 20px}
+  .chat{background:#1e293b;border-radius:10px;padding:12px;height:180px;overflow-y:auto;margin-bottom:10px;border:1px solid #2d3a4a;display:flex;flex-direction:column;gap:4px}
+  .msg{max-width:80%;padding:6px 12px;border-radius:8px;font-size:13px;line-height:1.5;animation:fade .15s}
+  .msg.c{background:#334155;color:#e2e8f0;align-self:flex-start}
+  .msg.a{background:#2563eb;color:#fff;align-self:flex-end}
+  .msg.s{align-self:center;font-size:10px;color:#64748b}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)}}
+  .status{font-size:11px;color:#94a3b8;margin-bottom:8px;padding:2px 0}
+  .picker{display:none;background:#1a1a24;border-radius:10px;padding:8px 12px;margin-bottom:6px;border:1px solid #2d3a4a}
+  .picker .ph{display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-bottom:4px}
+  .pi{display:flex;align-items:center;padding:6px 8px;background:#334155;border-radius:6px;margin-bottom:2px;cursor:pointer;transition:.1s;gap:6px}
+  .pi:hover,.pi.active{background:#2563eb}
+  .pi .k{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:rgba(255,255,255,.1);font-weight:700;font-size:10px}
+  .pi .t{font-weight:600;font-size:12px;flex:1}
+  .pi .p{font-size:10px;color:#94a3b8}
+  .btns{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+  .chips{display:flex;gap:4px;flex-wrap:wrap}
+  .chip{display:inline-block;padding:4px 10px;border-radius:20px;background:#334155;border:1px solid #2d3a4a;font-size:11px;cursor:pointer;color:#e2e8f0}
+  .chip:hover{background:#2563eb}
+  .rec-btn{width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:4px}
+  .rec-btn:hover{background:#1d4ed8}
+  ::-webkit-scrollbar{width:4px}
+  ::-webkit-scrollbar-thumb{background:#334155;border-radius:2px}
+</style></head>
+<body>
+<div class="titlebar"><div class="tt">🎧 Space 语音输入法</div></div>
+<div class="body">
+  <div class="chat" id="chat"></div>
+  <div class="picker" id="picker">
+    <div class="ph"><span id="pickerLabel">💡 选择话术</span><span>1-5 注入 · Esc 取消</span></div>
+    <div id="pickerList"></div>
+  </div>
+  <div class="status" id="status">✅ 就绪 · 点击快捷按钮或按住 🎤 录音</div>
+  <div class="btns">
+    <button class="rec-btn" id="recBtn">🎙️ 按住说话 (Space)</button>
+  </div>
+  <div class="chips">
+    <span class="chip" onclick="simulate('客户问退货流程怎么走')">🗣 退货流程 (热词)</span>
+    <span class="chip" onclick="simulate('物流咨询快递到哪了')">🗣 物流咨询 (分类)</span>
+    <span class="chip" onclick="simulate('我想换货换个颜色')">🗣 换颜色 (双热词)</span>
+    <span class="chip" onclick="simulate('好的请稍等我查一下')">🗣 好的请稍等 (原文)</span>
+  </div>
+</div>
+
+<script>
+const IS_TAURI = !!window.__TAURI__;
+const invoke = IS_TAURI ? window.__TAURI__.core.invoke : async (cmd, args) => {
+  console.log('DEMO: would call', cmd, args); return [];
+};
+
+let candidates = [];
+let selected = 0;
+
+function addMsg(who, text) {
+  const c = document.getElementById('chat');
+  const d = document.createElement('div');
+  d.classList.add('msg', who);
+  d.innerText = text;
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+
+function status(s) { document.getElementById('status').textContent = s; }
+
+async function simulate(text) {
+  addMsg('c', '🎤 ' + text);
+  status('🔍 匹配知识库…');
+
+  let result;
+  if (IS_TAURI) {
+    result = await invoke('match_kb', { text });
+  } else {
+    // Fallback for non-Tauri
+    const KB = [
+      {id:1,title:"7天无理由退货指引",keywords:["退货","怎么退"],text:"亲，我们支持 7 天无理由退货。",category:"售后退换"},
+      {id:3,title:"换货流程建议",keywords:["换货","换颜色"],text:"亲，建议您直接申请退货退款，然后重新拍下。",category:"售后退换"},
+      {id:4,title:"快递停滞加急催派",keywords:["催件","停滞","还没到"],text:"非常抱歉！我已帮您联系物流专员进行加急催派。",category:"物流咨询"},
+      {id:5,title:"发货快递与时效说明",keywords:["快递","发货"],text:"本店默认中通/圆通快递，如需顺丰请联系客服。",category:"物流咨询"},
+      {id:7,title:"投诉升级路径",keywords:["投诉","不满意"],text:"非常理解您的心情。已升级至客服主管处理。",category:"售后投诉"},
+    ];
+    result = KB.filter(item => item.keywords.some(kw => text.includes(kw)));
+    if (result.length === 0) {
+      const cats = [["售后退换",["售后","退换","退款","退货"]],["物流咨询",["物流","快递"]],["售后投诉",["售后","投诉"]]];
+      for (const [name, aliases] of cats) {
+        if (aliases.some(a => text.includes(a))) {
+          result = KB.filter(t => t.category === name);
+          break;
+        }
+      }
+    }
+  }
+
+  if (result && result.length > 0) {
+    candidates = result.slice(0, 5);
+    selected = 0;
+    showPicker(candidates);
+    const tag = candidates[0].match_type === 'hotword' ? '🔥 热词' : '📂 分类';
+    status(`💡 ${tag} · ${candidates.length} 条 · 按 1-${Math.min(candidates.length,5)} 注入`);
+  } else {
+    hidePicker();
+    if (IS_TAURI) await invoke('copy_text', { text });
+    status('📝 未匹配 · 原文复制到剪贴板 ✓');
+  }
+}
+
+function showPicker(list) {
+  hidePicker();
+  document.getElementById('picker').style.display = 'block';
+  const listEl = document.getElementById('pickerList');
+  listEl.innerHTML = list.map((item, i) => `
+    <div class="pi ${i===0?'active':''}" onclick="choose(${i})">
+      <span class="k">${i+1}</span>
+      <span class="t">${item.title}</span>
+      <span class="p">${item.text.slice(0,20)}…</span>
+    </div>
+  `).join('');
+}
+
+function hidePicker() {
+  document.getElementById('picker').style.display = 'none';
+  candidates = [];
+}
+
+function choose(idx) {
+  if (idx >= candidates.length) return;
+  const item = candidates[idx];
+  hidePicker();
+  if (IS_TAURI) invoke('copy_text', { text: item.text });
+  addMsg('a', '✅ ' + item.text);
+  status(`✅ 已注入: 「${item.title}」· ⌘V 粘贴`);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (document.getElementById('picker').style.display === 'block') {
+    if (e.key >= '1' && e.key <= '5') { choose(parseInt(e.key) - 1); e.preventDefault(); }
+    if (e.key === 'Escape') { hidePicker(); e.preventDefault(); }
+    if (e.key === 'ArrowDown') { selected = (selected + 1) % candidates.length; rerender(); e.preventDefault(); }
+    if (e.key === 'ArrowUp') { selected = (selected - 1 + candidates.length) % candidates.length; rerender(); e.preventDefault(); }
+  }
+  if (e.key === ' ' && document.activeElement === document.body) {
+    e.preventDefault();
+    addMsg('c', '🎤 (录音中…)');
+    setTimeout(() => simulate('客户问退货流程怎么走'), 2000);
+  }
+});
+
+function rerender() {
+  const items = document.querySelectorAll('.pi');
+  items.forEach((el, i) => {
+    el.classList.toggle('active', i === selected);
+    el.querySelector('.k').style.background = (i === selected) ? '#2563eb' : 'rgba(255,255,255,.1)';
+  });
+}
+
+// Init
+addMsg('s', '🛎️ Space 语音输入法已启动');
+addMsg('s', '快捷键: 快捷按钮模拟语音 · 1-5 注入 · Esc 取消');
+status('✅ 就绪');
+</script>
+</body></html>
