@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: rustup-actions/setup-rust@v1
+        uses: actions-rust/setup-rust@v1
         with:
           rust-version: stable
 
