@@ -9,7 +9,6 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::get_kb_templates,
-            commands::match_kb,
             commands::copy_text,
         ])
         .setup(|app| {
